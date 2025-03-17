@@ -3,17 +3,17 @@ from .base_options import BaseOptions
 class TrainOptions(BaseOptions):
     def initialize(self):
         BaseOptions.initialize(self)
-        self.parser.add_argument('--display_freq', type=int, default=50, help='frequency of displaying average loss')
-        self.parser.add_argument('--save_epoch_freq', type=int, default=10, help='frequency of saving checkpoints at the end of epochs')
-        self.parser.add_argument('--save_latest_freq', type=int, default=5000, help='frequency of saving the latest results')
-        self.parser.add_argument('--niter', type=int, default=1000, help='# of epochs to train')
-        self.parser.add_argument('--learning_rate_decrease_itr', type=int, default=-1, help='how often is the learning rate decreased by six percent')
+        self.parser.add_argument('--display_freq', type=int, default=20, help='frequency of displaying average loss')
+        self.parser.add_argument('--save_epoch_freq', type=int, default=20, help='frequency of saving checkpoints at the end of epochs')
+        self.parser.add_argument('--save_latest_freq', type=int, default=20, help='frequency of saving the latest results')
+        self.parser.add_argument('--niter', type=int, default=100, help='# of epochs to train')
+        self.parser.add_argument('--learning_rate_decrease_itr', type=int, default=10, help='how often is the learning rate decreased by six percent')
         self.parser.add_argument('--decay_factor', type=float, default=0.94, help='learning rate decay factor')
-        self.parser.add_argument('--tensorboard', type=bool, default=False, help='use tensorboard to visualize loss change ')		
+        self.parser.add_argument('--tensorboard', type=bool, default=True, help='use tensorboard to visualize loss change ')		
         self.parser.add_argument('--measure_time', type=bool, default=False, help='measure time of different steps during training')
-        self.parser.add_argument('--validation_on', action='store_true', help='whether to test on validation set during training')
-        self.parser.add_argument('--validation_freq', type=int, default=100, help='frequency of testing on validation set')
-        self.parser.add_argument('--validation_batches', type=int, default=10, help='number of batches to test for validation')
+        self.parser.add_argument('--validation_on', type=bool, default=True, help='whether to test on validation set during training') # action='store_true'
+        self.parser.add_argument('--validation_freq', type=int, default=20, help='frequency of testing on validation set')
+        self.parser.add_argument('--validation_batches', type=int, default=50, help='number of batches to test for validation')
         self.parser.add_argument('--enable_data_augmentation', type=bool, default=True, help='whether to augment input frame')
 
         #model arguments

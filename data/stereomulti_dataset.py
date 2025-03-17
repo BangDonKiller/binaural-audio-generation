@@ -1,12 +1,8 @@
-import pdb
 import os.path
-import time
 import librosa
 import h5py
 import random
-import math
 import numpy as np
-import glob
 import torch
 from torch.utils.data import Dataset
 from PIL import Image, ImageEnhance
@@ -40,6 +36,7 @@ def process_image(image, augment):
         image = enhancer.enhance(random.random()*0.6 + 0.7)
     return image
 
+
 class StereoDataset(Dataset):
     def __init__(self, opt):
         Dataset.__init__(self)
@@ -53,6 +50,13 @@ class StereoDataset(Dataset):
         self.audios = h5f['audio'][:]
         self.audios = [bytes.decode(_path) for _path in self.audios]
 
+        for i in range(len(self.audios)):
+            self.audios[i] = self.audios[i].replace(
+            "/private/home/rhgao/datasets/BINAURAL_MUSIC_ROOM/binaural16k/",
+            "D:/Dataset/FAIR-Play/binaural_audios/",
+        )
+
+
         normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]
@@ -61,55 +65,54 @@ class StereoDataset(Dataset):
         self.vision_transform = transforms.Compose(vision_transform_list)
 
     def _get_stereo_item(self, index):
-        #load audio
-        #print('index',self.audios[index])
+        # 載入音訊
         audio, audio_rate = librosa.load(self.audios[index].strip(), sr=self.opt.audio_sampling_rate, mono=False)
-        #print('audio_length',audio.shape)
-        #randomly get a start time for the audio segment from the 10s clip
+
+        # 隨機選擇音訊片段
         audio_start_time = random.uniform(0, 9.9 - self.opt.audio_length)
         audio_end_time = audio_start_time + self.opt.audio_length
         audio_start = int(audio_start_time * self.opt.audio_sampling_rate)
         audio_end = audio_start + int(self.opt.audio_length * self.opt.audio_sampling_rate)
         audio = audio[:, audio_start:audio_end]
         audio = normalize(audio)
-        #print('start',audio_start, 'end',audio_end,'length',audio.shape)
 
-        #randomly flip the input audio channels
+        # 隨機翻轉音訊通道
         x = random.randint(1, 10)
         if x < 6:
-            audio_channel1 = audio[0,:]
-            audio_channel2 = audio[1,:]
+            audio_channel1 = audio[0, :]
+            audio_channel2 = audio[1, :]
             flag = np.float32(1.0)
         else:
             audio_channel2 = audio[0, :]
             audio_channel1 = audio[1, :]
             flag = np.float32(0.0)
 
-        #get the frame dir path based on audio path
-        path_parts = self.audios[index].strip().split('/')
-        path_parts[-1] = path_parts[-1][:-4]
-        path_parts[-2] = 'frames'
-        frame_path = '/'.join(path_parts)
+        # 影像處理
+        # video_path = self.audios[index].replace("binaural_audios", "videos")[:-4] + ".mp4"
+        frame_path = self.audios[index].replace("binaural_audios", "frames")[:-4]
+        # print(frame_path)
 
-        # get the closest frame to the audio segment
-        frame_index = int(round(((audio_start_time + audio_end_time) / 2.0 + 0.05) * 10))  #10 frames extracted per second
+        # 選擇最接近音訊時間的影格
+        frame_index = int(round(((audio_start_time + audio_end_time) / 2.0 + 0.05) * 10))  # 每秒擷取 10 張影格
         frame = process_image(Image.open(os.path.join(frame_path, str(frame_index) + '.jpg')).convert('RGB'), self.opt.enable_data_augmentation)
         frame = self.vision_transform(frame)
 
-        #passing the spectrogram of the difference
-        audio_diff_spec = torch.FloatTensor(generate_spectrogram(audio[0,:] -  audio[1,:]))
+        # 計算頻譜圖
+        audio_diff_spec = torch.FloatTensor(generate_spectrogram(audio[0, :] - audio[1, :]))
         audio_mix_spec = torch.FloatTensor(generate_spectrogram(audio_channel1 + audio_channel2))
         left = torch.FloatTensor(generate_spectrogram(np.asfortranarray(audio_channel1)))
         right = torch.FloatTensor(generate_spectrogram(np.asfortranarray(audio_channel2)))
-        
 
-        return {'frame': frame, 'audio_diff_spec':audio_diff_spec, 'audio_mix_spec':audio_mix_spec, 'left': left,'right':right, 'flag':flag}
+        return {'frame': frame, 'audio_diff_spec': audio_diff_spec, 'audio_mix_spec': audio_mix_spec, 'left': left, 'right': right, 'flag': flag}
 
     def __getitem__(self, index):
-        return self._get_stereo_item(index)
+        result = self._get_stereo_item(index)
+        return result
+
 
     def __len__(self):
         return len(self.audios)
 
     def name(self):
         return 'StereoDataset'
+
