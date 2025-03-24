@@ -2,3 +2,5 @@ eval_demo
 checkpoints
 runs
 weight
+**/*/*.pyc
+*.pyc

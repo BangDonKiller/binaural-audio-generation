@@ -19,6 +19,8 @@ from models.networksf21 import (
     weights_init,
     AudioNet1,
     Attention,
+    TemporalConvNet,
+    B4_TCN,
 )
 from torchvision.models import ResNet18_Weights
 
@@ -26,8 +28,6 @@ def audio_normalize(samples, desired_rms=0.1, eps=1e-4):
     rms = np.maximum(eps, np.sqrt(np.mean(samples**2)))
     samples = samples * (desired_rms / rms)
     return rms / desired_rms, samples
-
-
 
 
 def main():
@@ -42,6 +42,12 @@ def main():
         net_visual = VisualNet(original_resnet)
     elif opt.visual_model == "VisualNetDilated":
         net_visual = VisualNetDilated(original_resnet)
+    elif opt.visual_model == "TCN":
+        nhid = 512
+        level = 5
+        channel_size = [nhid] * level
+        input_channel = 512
+        net_visual = TemporalConvNet(input_channel, channel_size, kernel_size=3, dropout=0.2)
     else:
         raise TypeError("please input correct visual model type")
 
@@ -93,9 +99,7 @@ def main():
             "/private/home/rhgao/datasets/BINAURAL_MUSIC_ROOM/binaural16k/",
             "D:/Dataset/FAIR-Play/binaural_audios/",
         )
-        # video_path = audio_file.replace("binaural_audios", "videos")[:-4] + ".mp4"
-        # create video frames
-        # create_video_frames(video_path, video_path.replace("videos", "frames")[:-4])
+
         input_audio_path = audio_file
         video_frame_path = audio_file.replace("binaural_audios", "frames")[:-4]
 
@@ -171,6 +175,11 @@ def main():
             audio_diff = audio_diff.to(opt.device)
             audio_mix = audio_mix.to(opt.device)
             frame = frame.to(opt.device)
+
+            if opt.visual_model == "TCN":
+                b4_tcn = B4_TCN().to(opt.device)
+                visual_input = b4_tcn(frame)
+                frame = visual_input
 
             vfeat = net_visual(frame)
             vfeat1 = net_att1(vfeat)
@@ -273,6 +282,12 @@ def main():
         audio_diff = audio_diff.to(opt.device)
         audio_mix = audio_mix.to(opt.device)
         frame = frame.to(opt.device)
+        
+        
+        if opt.visual_model == "TCN":
+            b4_tcn = B4_TCN().to(opt.device)
+            visual_input = b4_tcn(frame)
+            frame = visual_input
 
         vfeat = net_visual(frame)
         vfeat1 = net_att1(vfeat)

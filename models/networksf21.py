@@ -31,13 +31,20 @@ def create_conv(
     Relu=True,
     stride=1,
 ):
+    # model = [
+    #     nn.Conv2d(
+    #         input_channels, output_channels, kernel, stride=stride, padding=paddings
+    #     )
+    # ]
     model = [
-        nn.Conv2d(
+        nn.Conv1d(
             input_channels, output_channels, kernel, stride=stride, padding=paddings
         )
     ]
+    
     if batch_norm:
-        model.append(nn.BatchNorm2d(output_channels))
+        # model.append(nn.BatchNorm2d(output_channels))
+        model.append(nn.BatchNorm1d(output_channels))
     if Relu:
         model.append(nn.ReLU())
     return nn.Sequential(*model)
@@ -52,13 +59,19 @@ def create_conv_sig(
     Sigmoid=True,
     stride=1,
 ):
+    # model = [
+    #     nn.Conv2d(
+    #         input_channels, output_channels, kernel, stride=stride, padding=paddings
+    #     )
+    # ]
     model = [
-        nn.Conv2d(
+        nn.Conv1d(
             input_channels, output_channels, kernel, stride=stride, padding=paddings
         )
     ]
     if batch_norm:
-        model.append(nn.BatchNorm2d(output_channels))
+        # model.append(nn.BatchNorm2d(output_channels))
+        model.append(nn.BatchNorm1d(output_channels))
     if Sigmoid:
         model.append(nn.Sigmoid())
     return nn.Sequential(*model)
@@ -118,10 +131,8 @@ class VisualNet(nn.Module):
         super().__init__()
         layers = list(original_resnet.children())[0:-2]
         self.feature_extraction = nn.Sequential(*layers)  # features before conv1x1
-        # self.feature_extraction = original_resnet
 
     def forward(self, x):
-        # x = x.view(x.size(0), x.size(1), -1)
         x = self.feature_extraction(x)
         return x
 
@@ -305,7 +316,7 @@ class netD3(nn.Module):
     輸入為音訊特徵和視覺特徵
     """
 
-    def __init__(self, ndf=512, nc=2320, nb_label=2):
+    def __init__(self, ndf=1, nc=2320, nb_label=2):
 
         super(netD3, self).__init__()
         self.conv1x1 = create_conv(512, 8, 1, 0)
@@ -320,9 +331,13 @@ class netD3(nn.Module):
         v = v.view(v.shape[0], -1, 1, 1)  # flatten visual feature
         v = v.repeat(1, 1, 8, 2)
         input = torch.cat((v, input), dim=1)
+        
+        input = input.view(input.size(0), input.size(1), -1)
         x = self.conv1x11(input)
         x = torch.nn.functional.adaptive_avg_pool2d(x, (1, 1))
-        x = x.view(-1, self.ndf * 1)
+        # x = x.view(-1, self.ndf * 1)
+        x = x.view(x.size(0), -1)
+        
         s = self.disc_linear(x)
         s = self.sigmoid(s)
         return s
@@ -437,6 +452,7 @@ class Chomp1d(nn.Module):
         return x[:, :, :-self.chomp_size].contiguous()
 
 
+# TODO: fix this module
 class TemporalBlock(nn.Module):
     def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
         super(TemporalBlock, self).__init__()
@@ -486,3 +502,41 @@ class TemporalConvNet(nn.Module):
 
     def forward(self, x):
         return self.network(x)
+    
+    
+class B4_TCN(nn.Module):
+    def __init__(self, num_channels=3, kernel_size=2):
+        super(B4_TCN, self).__init__()
+        
+        self.conv_layers = nn.Sequential(
+            
+        # Layer 1: 輸入 224x448
+        nn.Conv2d(num_channels, 32, kernel_size=3, padding=1), # 保持尺寸
+        nn.ReLU(),
+        nn.MaxPool2d(kernel_size=2, stride=2), # 輸出 112x224
+
+        # Layer 2: 輸入 112x224
+        nn.Conv2d(32, 64, kernel_size=3, padding=1), # 保持尺寸
+        nn.ReLU(),
+        nn.MaxPool2d(kernel_size=2, stride=2), # 輸出 56x112
+
+        # Layer 3: 輸入 56x112
+        nn.Conv2d(64, 128, kernel_size=3, padding=1), # 保持尺寸
+        nn.ReLU(),
+        nn.MaxPool2d(kernel_size=2, stride=2), # 輸出 28x56
+
+        # Layer 4: 輸入 28x56
+        nn.Conv2d(128, 256, kernel_size=3, padding=1), # 保持尺寸
+        nn.ReLU(),
+        nn.MaxPool2d(kernel_size=2, stride=2), # 輸出 14x28
+
+        # Layer 5: 輸入 14x28
+        nn.Conv2d(256, 512, kernel_size=3, padding=1), # 保持尺寸
+        nn.ReLU(),
+        nn.MaxPool2d(kernel_size=2, stride=2), # 輸出 7x14
+        )
+        
+    def forward(self, x):
+        x = self.conv_layers(x)
+        x = x.view(x.size(0), x.size(1), -1)
+        return x

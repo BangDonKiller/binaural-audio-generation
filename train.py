@@ -15,9 +15,9 @@ from models.networksf21 import (
     Stereo,
     Attention,
     TemporalConvNet,
+    B4_TCN,
 )
 from torch.utils.tensorboard import SummaryWriter
-import torch.multiprocessing as mp
 from torchvision.models import resnet18, ResNet18_Weights
 from tqdm import tqdm
 
@@ -25,6 +25,17 @@ def compute_loss(
     output, f, flag, audio_mix, loss_criterion, prefix="stereo", weight=44
 ):
     loss_dict = {}
+    
+    if torch.isnan(output["binaural_spectrogram"]).any() or torch.isinf(output["binaural_spectrogram"]).any():
+        print("Error: binaural_spectrogram contains NaN or Inf")
+        # 可以加入更多資訊，例如輸出 tensor 的最大最小值
+        print("binaural_spectrogram max:", output["binaural_spectrogram"].max())
+        print("binaural_spectrogram min:", output["binaural_spectrogram"].min())
+        raise RuntimeError("NaN or Inf detected in binaural_spectrogram") # 立刻停止訓練
+    
+    if torch.isnan(f).any() or torch.isinf(f).any():
+        print("Error: f contains NaN or Inf")
+        raise RuntimeError("NaN or Inf detected in f") # 立刻停止訓練
 
     key = "{}_loss".format(prefix)
     loss_dict[key] = (
@@ -47,7 +58,7 @@ def compute_loss(
 
     # classification loss
     key = "{}_loss_class".format(prefix)
-    flag = flag.view(flag.size(0), -1)
+    flag = flag.view(flag.size(0), -1)          
     loss_dict[key] = torch.nn.BCELoss()(f, flag)
     loss_dict
 
@@ -143,6 +154,11 @@ def display_val(nets, loss_criterion, writer, index, data_loader_val, opt, retur
                 left = val_data["left"].to(opt.device)
                 right = val_data["right"].to(opt.device)
                 flag = val_data["flag"].to(opt.device)
+                
+                if opt.visual_model == "TCN":
+                    b4_tcn = B4_TCN().to(opt.device)
+                    visual_input = b4_tcn(visual_input)
+                
                 vfeat = net_visual(visual_input)
                 vfeat1 = net_att1(vfeat)
                 vfeat2 = net_att2(vfeat)
@@ -152,7 +168,8 @@ def display_val(nets, loss_criterion, writer, index, data_loader_val, opt, retur
                 output.update(net_fusion(audio_mix, vfeat1, upfeatures))
                 mid = net_stereo(left, right)
                 f = net_class(mid, vfeat2)
-
+                # f = f.clamp(0, 1)
+                
                 val_total_loss.update(
                     compute_loss(
                         output,
@@ -223,18 +240,20 @@ if opt.tensorboard:
 else:
     writer = None
 
-nhid = 512
-level = 8
-channel_size = [nhid] * level
-input_channel = 3
 ## build network
 # visual net
 original_resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
-# original_TCN = TemporalConvNet(input_channel, channel_size, kernel_size=3, dropout=0.2)
 if opt.visual_model == "VisualNet":
     net_visual = VisualNet(original_resnet)
 elif opt.visual_model == "VisualNetDilated":
     net_visual = VisualNetDilated(original_resnet)
+elif opt.visual_model == "TCN":
+    nhid = 512
+    level = 5
+    channel_size = [nhid] * level
+    input_channel = 512
+    net_visual = TemporalConvNet(input_channel, channel_size, kernel_size=3, dropout=0.2)
+    
 else:
     raise TypeError("please input correct visual model type")
 
@@ -355,6 +374,11 @@ if __name__ == "__main__":
                 left = data["left"].to(opt.device)
                 right = data["right"].to(opt.device)
                 flag = data["flag"].to(opt.device)
+                
+                if opt.visual_model == "TCN":
+                    b4_tcn = B4_TCN().to(opt.device)
+                    visual_input = b4_tcn(visual_input)
+                
                 vfeat = net_visual(visual_input)
                 vfeat1 = net_att1(vfeat)
                 vfeat2 = net_att2(vfeat)
