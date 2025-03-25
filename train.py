@@ -242,10 +242,11 @@ else:
 
 ## build network
 # visual net
-original_resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
 if opt.visual_model == "VisualNet":
+    original_resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
     net_visual = VisualNet(original_resnet)
 elif opt.visual_model == "VisualNetDilated":
+    original_resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
     net_visual = VisualNetDilated(original_resnet)
 elif opt.visual_model == "TCN":
     nhid = 512
@@ -268,6 +269,7 @@ net_audio = AudioNet1(
     input_nc=opt.unet_input_nc,
     output_nc=opt.unet_output_nc,
     norm_mode=opt.norm_mode,
+    visual_model=opt.visual_model,
 )
 net_audio.apply(weights_init)
 if len(opt.weights_audio) > 0:
@@ -285,21 +287,21 @@ if len(opt.weights_stereo) > 0:
     net_stereo.load_state_dict(torch.load(opt.weights_audio2), strict=True)
 
 # 音訊翻轉任務輸出層
-net_class = netD3()
+net_class = netD3(visual_model=opt.visual_model)
 net_class.apply(weights_init)
 if len(opt.weights_class) > 0:
     print("Loading weights for class stream")
     net_class.load_state_dict(torch.load(opt.weights_class), strict=True)
 
 # 雙聲道音訊生成任務注意力機制
-net_att1 = Attention()
+net_att1 = Attention(visual_model=opt.visual_model)
 net_att1.apply(weights_init)
 if len(opt.weights_att1) > 0:
     print("Loading weights for att1 stream")
     net_att1.load_state_dict(torch.load(opt.weights_att1), strict=True)
 
 # 音訊翻轉任務注意力機制
-net_att2 = Attention()
+net_att2 = Attention(visual_model=opt.visual_model)
 net_att2.apply(weights_init)
 if len(opt.weights_att2) > 0:
     print("Loading weights for att2 stream")

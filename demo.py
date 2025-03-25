@@ -57,14 +57,14 @@ def main():
 
     # audio net
     net_audio = AudioNet1(
-        ngf=opt.unet_ngf, input_nc=opt.unet_input_nc, output_nc=opt.unet_output_nc
+        ngf=opt.unet_ngf, input_nc=opt.unet_input_nc, output_nc=opt.unet_output_nc, visual_model=opt.visual_model
     )
     net_audio.apply(weights_init)
     if len(opt.weights_audio) > 0:
         print("Loading weights for audio stream")
         net_audio.load_state_dict(torch.load(opt.weights_audio), strict=True)
 
-    net_att1 = Attention()
+    net_att1 = Attention(visual_model=opt.visual_model)
     net_att1.apply(weights_init)
     if len(opt.weights_att1) > 0:
         print("Loading weights for att1 stream")
@@ -101,7 +101,7 @@ def main():
         )
 
         input_audio_path = audio_file
-        video_frame_path = audio_file.replace("binaural_audios", "frames")[:-4]
+        video_frame_path = audio_file.replace("binaural_audios", "mask_frames")[:-4]
 
         audio_id = audio_file.split("/")[-1][:-4]
         cur_output_dir_root = os.path.join(opt.output_dir_root, audio_id)

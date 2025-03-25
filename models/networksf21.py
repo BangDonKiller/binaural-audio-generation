@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.parametrizations import weight_norm
 from .sync_batchnorm import SynchronizedBatchNorm2d
-
+from options.train_options import TrainOptions
 
 def unet_conv(input_nc, output_nc, norm_layer=nn.BatchNorm2d):
     downconv = nn.Conv2d(input_nc, output_nc, kernel_size=4, stride=2, padding=1)
@@ -27,24 +27,29 @@ def create_conv(
     output_channels,
     kernel,
     paddings,
+    visual_model=None,
     batch_norm=True,
     Relu=True,
     stride=1,
 ):
-    # model = [
-    #     nn.Conv2d(
-    #         input_channels, output_channels, kernel, stride=stride, padding=paddings
-    #     )
-    # ]
-    model = [
-        nn.Conv1d(
-            input_channels, output_channels, kernel, stride=stride, padding=paddings
-        )
-    ]
+    if visual_model == 'TCN':
+        model = [
+            nn.Conv1d(
+                input_channels, output_channels, kernel, stride=stride, padding=paddings
+            )
+        ]
+        if batch_norm:
+            model.append(nn.BatchNorm1d(output_channels))
+    else:
+        model = [
+            nn.Conv2d(
+                input_channels, output_channels, kernel, stride=stride, padding=paddings
+            )
+        ]
+        if batch_norm:
+            model.append(nn.BatchNorm2d(output_channels))
+        
     
-    if batch_norm:
-        # model.append(nn.BatchNorm2d(output_channels))
-        model.append(nn.BatchNorm1d(output_channels))
     if Relu:
         model.append(nn.ReLU())
     return nn.Sequential(*model)
@@ -55,23 +60,27 @@ def create_conv_sig(
     output_channels,
     kernel,
     paddings,
+    visual_model=None,
     batch_norm=True,
     Sigmoid=True,
     stride=1,
 ):
-    # model = [
-    #     nn.Conv2d(
-    #         input_channels, output_channels, kernel, stride=stride, padding=paddings
-    #     )
-    # ]
-    model = [
-        nn.Conv1d(
-            input_channels, output_channels, kernel, stride=stride, padding=paddings
-        )
-    ]
-    if batch_norm:
-        # model.append(nn.BatchNorm2d(output_channels))
-        model.append(nn.BatchNorm1d(output_channels))
+    if visual_model == 'TCN':
+        model = [
+            nn.Conv1d(
+                input_channels, output_channels, kernel, stride=stride, padding=paddings
+            )
+        ]
+        if batch_norm:
+            model.append(nn.BatchNorm1d(output_channels))
+    else:
+        model = [
+            nn.Conv2d(
+                input_channels, output_channels, kernel, stride=stride, padding=paddings
+            )
+        ]
+        if batch_norm:
+            model.append(nn.BatchNorm2d(output_channels))
     if Sigmoid:
         model.append(nn.Sigmoid())
     return nn.Sequential(*model)
@@ -179,13 +188,14 @@ class VisualNetDilated(nn.Module):
 
 
 class AudioNet1(nn.Module):
-    def __init__(self, ngf=64, input_nc=2, output_nc=2, norm_mode="syncbn"):
+    def __init__(self, ngf=64, input_nc=2, output_nc=2, norm_mode="syncbn", visual_model="TCN"):
         super().__init__()
         # initialize layers
         if norm_mode == "syncbn":
             norm_layer = SynchronizedBatchNorm2d
         else:
             norm_layer = nn.BatchNorm2d
+        self.visual_model = visual_model
         self.audionet_convlayer1 = unet_conv(input_nc, ngf, norm_layer=norm_layer)
         self.audionet_convlayer2 = unet_conv(ngf, ngf * 2, norm_layer=norm_layer)
         self.audionet_convlayer3 = unet_conv(ngf * 2, ngf * 4, norm_layer=norm_layer)
@@ -205,7 +215,7 @@ class AudioNet1(nn.Module):
             ngf * 2, output_nc, outermost=True, norm_layer=norm_layer
         )
         self.conv1x1 = create_conv(
-            512, 8, 1, 0
+            512, 8, 1, 0, self.visual_model
         )  # reduce dimension of extracted visual features
 
     def forward(self, audio_diff, audio_mix, visual_feat, return_upfeatures=False):
@@ -263,16 +273,16 @@ class AudioNet1(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, input_nc=512, output_nc=512, kernel_size=1, norm_mode="syncbn"):
+    def __init__(self, input_nc=512, output_nc=512, kernel_size=1, norm_mode="syncbn", visual_model="TCN"):
         super().__init__()
         if norm_mode == "syncbn":
             norm_layer = SynchronizedBatchNorm2d
         else:
             norm_layer = nn.BatchNorm2d
 
-        self.conv1x1_1 = create_conv(input_nc, output_nc, kernel_size, 0)
-        self.conv1xa_2 = create_conv_sig(output_nc, input_nc, kernel_size, 0)
-
+        self.visual_model = visual_model
+        self.conv1x1_1 = create_conv(input_nc, output_nc, kernel_size, 0, self.visual_model)
+        self.conv1xa_2 = create_conv_sig(output_nc, input_nc, kernel_size, 0, self.visual_model)
     def forward(self, v):
         input_v = v
         v = self.conv1x1_1(v)
@@ -316,14 +326,15 @@ class netD3(nn.Module):
     輸入為音訊特徵和視覺特徵
     """
 
-    def __init__(self, ndf=1, nc=2320, nb_label=2):
-
+    def __init__(self, ndf=512, nc=2320, nb_label=2, visual_model=None):
         super(netD3, self).__init__()
-        self.conv1x1 = create_conv(512, 8, 1, 0)
-        self.conv1x11 = create_conv(1296, 512, 1, 0)
+        self.conv1x1 = create_conv(512, 8, 1, 0, visual_model)
+        self.conv1x11 = create_conv(1296, 512, 1, 0, visual_model)
+        ndf = 1 if visual_model == 'TCN' else 512
         self.disc_linear = nn.Linear(ndf * 1, 1)
         self.sigmoid = nn.Sigmoid()
         self.ndf = ndf
+        self.visual_model = visual_model
 
     def forward(self, input, v):
 
@@ -332,11 +343,15 @@ class netD3(nn.Module):
         v = v.repeat(1, 1, 8, 2)
         input = torch.cat((v, input), dim=1)
         
-        input = input.view(input.size(0), input.size(1), -1)
-        x = self.conv1x11(input)
-        x = torch.nn.functional.adaptive_avg_pool2d(x, (1, 1))
-        # x = x.view(-1, self.ndf * 1)
-        x = x.view(x.size(0), -1)
+        if self.visual_model == 'TCN':
+            input = input.view(input.size(0), input.size(1), -1)
+            x = self.conv1x11(input)
+            x = torch.nn.functional.adaptive_avg_pool2d(x, (1, 1))
+            x = x.view(x.size(0), -1)
+        else:
+            x = self.conv1x11(input)
+            x = torch.nn.functional.adaptive_avg_pool2d(x, (1, 1))
+            x = x.view(-1, self.ndf * 1)
         
         s = self.disc_linear(x)
         s = self.sigmoid(s)
@@ -452,7 +467,6 @@ class Chomp1d(nn.Module):
         return x[:, :, :-self.chomp_size].contiguous()
 
 
-# TODO: fix this module
 class TemporalBlock(nn.Module):
     def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
         super(TemporalBlock, self).__init__()

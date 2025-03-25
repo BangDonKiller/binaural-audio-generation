@@ -12,7 +12,7 @@ class BaseOptions():
         self.parser.add_argument('--name', type=str, default='spatialAudioVisual', help='name of the experiment. It decides where to store models')
         self.parser.add_argument('--checkpoints_dir', type=str, default='checkpoints/', help='models are saved here')
         self.parser.add_argument('--audio_model', type=str, default='AudioNet', help='audio model type')
-        self.parser.add_argument('--visual_model', type=str, choices=['VisualNet', 'VisualNetDilated', 'TCN'], default='TCN', help='visual model type')
+        self.parser.add_argument('--visual_model', type=str, choices=['VisualNet', 'VisualNetDilated', 'TCN', 'MobileNetV2'], default='MobileNetV2', help='visual model type')
         self.parser.add_argument('--batchSize', type=int, default=32, help='input batch size')
         self.parser.add_argument('--nThreads', default=1, type=int, help='# threads for loading data')
         self.parser.add_argument('--audio_sampling_rate', default=16000, type=int, help='audio sampling rate')

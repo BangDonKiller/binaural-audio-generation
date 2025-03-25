@@ -81,9 +81,9 @@ def create_mask_video(video_path, output_path):
 video_path = "D:/Dataset/FAIR-Play/videos"
 frame_path = "D:/Dataset/FAIR-Play/frames"
 mask_video_path = "D:/Dataset/FAIR-Play/mask_videos"
+mask_video_frame_path = "D:/Dataset/FAIR-Play/mask_frames"
 
 
 for video in os.listdir(video_path):
-
-    create_mask_video(os.path.join(video_path, video), os.path.join(mask_video_path, video.split(".")[0]))
-    # create_video_frames(os.path.join(video_path, video), os.path.join(frame_path, video.split(".")[0]))
+    # create_mask_video(os.path.join(video_path, video), os.path.join(mask_video_path, video.split(".")[0]))
+    create_video_frames(os.path.join(mask_video_path, video), os.path.join(mask_video_frame_path, video.split(".")[0]))

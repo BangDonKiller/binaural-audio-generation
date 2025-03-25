@@ -89,7 +89,7 @@ class StereoDataset(Dataset):
 
         # 影像處理
         # video_path = self.audios[index].replace("binaural_audios", "videos")[:-4] + ".mp4"
-        frame_path = self.audios[index].replace("binaural_audios", "frames")[:-4]
+        frame_path = self.audios[index].replace("binaural_audios", "mask_frames")[:-4]
         # print(frame_path)
 
         # 選擇最接近音訊時間的影格

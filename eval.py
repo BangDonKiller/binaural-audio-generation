@@ -3,7 +3,7 @@ import librosa
 import numpy as np
 import scipy.signal
 
-target_folder = "eval_demo/stereo/model-best/split5_TCN"
+target_folder = "eval_demo/stereo/model-best/split5_100"
 
 def STFT_Distance(input_audio, predicted_audio):
     # 讀取音訊檔案（保留 stereo）
